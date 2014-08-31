@@ -35,14 +35,11 @@ var users = [
   , new User('ciaran', 'ciaranj@gmail.com')
   , new User('aaron', 'aaron.heckmann+github@gmail.com')
 ];
-app.all('*', function(req, res){//all()->get post delete put都會執行 ，*萬用字元
-	console.log('Count: ' + count++);
 
-	if(req.headers.host === 'localhost:3000'){
-		console.log(Access "denied"
-		)
-	}
+app.get('/welcome', function(req, res) {
+	res.render('index');
 });
+
 app.get('/1/post', function(req, res){
   res.send(posts);
 });
