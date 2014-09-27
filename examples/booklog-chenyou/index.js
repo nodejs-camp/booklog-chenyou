@@ -13,6 +13,39 @@ var pub = __dirname + '/public';
 var app = express();
 app.use(express.static(pub));
 
+var mongoose = require('mongoose');
+mongoose.connect('mongodb://localhost/booklog2');
+
+var dbConn = mongoose.connection;
+dbConn.on('error', console.error.bind(console, 'connection error:'));
+dbConn.once('open', function callback () {
+  console.log('MongoDB: connected.'); 
+});
+
+//Table
+var postSchema = new mongoose.Schema({
+    subject: { type: String, default: ''},
+    content: String
+});
+
+var memberSchema = new mongoose.Schema({
+    id: {type: String, unique:true},
+    name: {type: String},
+    createDate: {type: String},
+    memberProvider:{type: String},
+    loginInfo:{}
+});
+
+//put to express framework
+//'Post'=Tablename
+//Model is definition of document.
+//new schema to a model, naming for the schema to a model named 'Post'.
+//Collection name=&model_name+"s"(lower case), e.g. posts.
+app.db = {
+  posts: mongoose.model('Post', postSchema),
+  members: mongoose.model('Member', postSchema)
+};
+
 // Optional since express defaults to CWD/views
 
 app.set('views', __dirname + '/views');
@@ -22,52 +55,215 @@ app.set('views', __dirname + '/views');
 // (although you can still mix and match)
 app.set('view engine', 'jade');
 
-var posts = [];
+var posts = [{
+  subject: "Hello",
+  content: "Hi !"
+}, {
+  subject: "World",
+  content: "Hi !"
+}];
 
-function User(name, email) {
-  this.name = name;
-  this.email = email;
-}
+var bodyParser = require('body-parser');
+var session = require('express-session');
+var passport = require('passport')
+  , FacebookStrategy = require('passport-facebook').Strategy;
 
-// Dummy users
-var users = [
-    new User('tj', 'tj@vision-media.ca')
-  , new User('ciaran', 'ciaranj@gmail.com')
-  , new User('aaron', 'aaron.heckmann+github@gmail.com')
-];
+app.use(bodyParser.urlencoded({
+  extended: true
+}));
+app.use(session({ secret: '12345678' }));
+app.use(passport.initialize());//use is mean middleware...(?)
+app.use(passport.session());
 
-app.get('/welcome', function(req, res) {
-	res.render('index');
+passport.serializeUser(function(user, done) {
+  done(null, user);
 });
 
-app.get('/1/post', function(req, res){
-  res.send(posts);
+passport.deserializeUser(function(id, done) {
+  done(null, id);
 });
 
-app.post('/1/post',function(req, res){
-	var subject;
-	var content;
+passport.use(new FacebookStrategy({
+    clientID: "573894422722633",
+    clientSecret: "cd295293760fb7fe56a69c1aae66da51",
+    callbackURL: "http://localhost:3000/auth/facebook/callback"
+  },
+  function(accessToken, refreshToken, profile, done) {
+    console.log(profile);
+    return done(null, profile);
+/*
+    var model = req.app.db.members;
+    var member = {
+       id: profile.id,
+       name: profile.displayName,
+       createDate: sysdate,
+       memberProvider:provider,
+       loginInfo:profile
+    };
 
-	if (typeof(req.body) === 'undefined'){
-		subject = req.query.subject;
-		content = req.query.content;
-	}
-	var post = {
-		"subject": subject,//key可省略""
-		"content": content
-	};
+    var MEMBER = new model(member);//new a document by post object.
+    MEMBER.save();*/
 
-	posts.push(post);
-	res.send({ status: 'ok'});
+/*
+    model.findOrCreate(..., function(err, user) {
+      if (err) { return done(err); }
+      done(null, user);
+    });*/
+  }
+));
+
+// Redirect the user to Facebook for authentication.  When complete,
+// Facebook will redirect the user back to the application at
+//     /auth/facebook/callback
+app.get('/auth/facebook', passport.authenticate('facebook'));
+
+// Facebook will redirect the user to this URL after approval.  Finish the
+// authentication process by attempting to obtain an access token.  If
+// access was granted, the user will be logged in.  Otherwise,
+// authentication has failed.
+app.get('/auth/facebook/callback', 
+  passport.authenticate('facebook', { successRedirect: '/',
+                                      failureRedirect: '/login' }));
+
+
+
+app.all('*', function(req, res, next){
+  if (!req.get('Origin')) return next();
+  // use "*" here to accept any origin
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'PUT');
+  res.set('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type');
+  // res.set('Access-Control-Allow-Max-Age', 3600);
+  if ('OPTIONS' == req.method) return res.send(200);
+  next();
 });
 
-app.delete('/1/post',function(req, res){
-	res.send("delete a post");
+app.get('/', function(req, res, next) {
+  console.log(req.isAuthenticated());
+  if (req.isAuthenticated()) {
+    next();
+  } else {
+    res.render('login');
+  }
 });
 
-app.put('/1/post/:postId',function(req, res){
-	var id = req.params.postId
-	res.send("update a post " + id);
+app.get('/', function(req, res) {
+  res.render('index');
+});
+
+app.get('/logout', function(req, res){
+  req.logout();
+  res.redirect('/');
+});
+
+app.get('/download', function(req, res) {
+  var events = require('events');
+  var workflow = new events.EventEmitter();
+
+  workflow.outcome = {
+    success: false,
+  };
+
+  workflow.on('vaidate', function() {
+    var password = req.query.password;
+
+    if (typeof(req.retries) === 'undefined')
+      req.retries = 3;
+
+    if (password === '123456') {
+      return workflow.emit('success');
+    }
+
+    return workflow.emit('error');
+  });
+
+  workflow.on('success', function() {
+    workflow.outcome.success = true;
+    workflow.outcome.redirect = { 
+      url: '/welcome'
+    };
+    workflow.emit('response');
+  });
+
+  workflow.on('error', function() {
+    if (req.retries > 0) {
+      req.retries--;
+      workflow.outcome.retries = req.retries;
+      workflow.emit('response');
+    }
+
+    workflow.outcome.success = false;
+    workflow.emit('response');
+  });
+
+  workflow.on('response', function() {
+    return res.send(workflow.outcome);
+  });
+
+  return workflow.emit('vaidate');
+});
+
+app.get('/post', function(req, res) {
+  res.render('post', {
+    posts: posts
+  });
+});
+
+app.get('/1/post/:id', function(req, res) { 
+  var id = req.params.id;
+  var model = req.app.db.posts;
+
+  //Read
+  //"_id:" is the attribute auto generated by mongodb, meanwhile it's represented the document name also.
+  model.findOne({_id: id}, function(err, post) {
+    res.send({post: post}); 
+  });
+});
+
+app.get('/1/post', function(req, res) { 
+  var model = req.app.db.posts;
+
+  model.find(function(err, posts) {
+    res.send({posts: posts}); 
+  });
+});
+
+
+app.post('/1/post', function(req, res) {
+  var model = req.app.db.posts;
+
+  var subject;
+  var content;
+
+  if (typeof(req.body) === 'undefined') {
+    subject = req.query.subject;
+    content = req.query.content;
+  } else {
+    subject = req.body.subject;
+    content = req.body.content;   
+  }
+
+  var post = {
+    subject: subject,
+    content: content
+  };
+
+  //posts.push(post);
+  //Create
+  var card = new model(post);//new a document by post object.
+  card.save();
+
+  res.send({ status: 'OK'});
+});
+
+app.delete('/1/post', function(req, res) {
+  res.send("Delete a post");
+});
+
+app.put('/1/post/:postId', function(req, res) {
+  var id = req.params.postId;
+
+  res.send("Update a post: " + id);
 });
 
 // change this to a better error handler in your code

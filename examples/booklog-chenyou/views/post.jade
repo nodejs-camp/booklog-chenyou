@@ -1,0 +1,7 @@
+extend layout
+
+block content
+	ul
+		each post in posts
+			li: = post.subject
+			li: = post.content
