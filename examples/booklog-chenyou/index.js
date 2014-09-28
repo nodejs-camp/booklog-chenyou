@@ -13,8 +13,10 @@ var pub = __dirname + '/public';
 var app = express();
 app.use(express.static(pub));
 
+var MONGODB_URI = 'mongodb://localhost/booklog2';
+
 var mongoose = require('mongoose');
-mongoose.connect('mongodb://localhost/booklog2');
+mongoose.connect(MONGODB_URI);
 
 var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error:'));
@@ -28,6 +30,8 @@ var postSchema = new mongoose.Schema({
 
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 });
+
+postSchema.index({ content: 'text'});
 
 var userSchema = new mongoose.Schema({
     username: { type: String, unique: true },
@@ -195,6 +199,18 @@ app.get('/1/post/:id', function(req, res) {
 
 	posts.findOne({_id: id}, function(err, post) {
 		res.send({post: post});	
+	});
+});
+
+app.get('/1/post/tag/:tag', function(req, res) {
+	var tag = req.params.tag;
+	var posts = req.app.db.posts;
+
+	posts
+	.find( {$text: { $search: tag } } )
+	.exec(function(err, posts) {
+		if (err) return console.log(err);
+		res.send({posts: posts});	
 	});
 });
 

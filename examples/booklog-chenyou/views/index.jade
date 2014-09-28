@@ -9,40 +9,14 @@ block content
             .col-lg-8
               div#blog-post
             .col-md-4
-              .well
-                h4 Blog Search
+              .well#search-section
+                h4 Author Search
                 .input-group
-                  input.form-control(type='text')
+                  input.form-control#search-tag(type='text')
                   span.input-group-btn
-                    button.btn.btn-default(type='button')
+                    button.btn.btn-default.btn-search(type='button')
                       span.glyphicon.glyphicon-search
-              .well
-                h4 Blog Categories
-                .row
-                  .col-lg-6
-                    ul.list-unstyled
-                      li
-                        a(href='#') Category Name
-                      li
-                        a(href='#') Category Name
-                      li
-                        a(href='#') Category Name
-                      li
-                        a(href='#') Category Name
-                  .col-lg-6
-                    ul.list-unstyled
-                      li
-                        a(href='#') Category Name
-                      li
-                        a(href='#') Category Name
-                      li
-                        a(href='#') Category Name
-                      li
-                        a(href='#') Category Name
-              .well
-                h4 Side Widget Well
-                p
-                  | Lorem ipsum dolor sit amet, consectetur adipisicing elit. Inventore, perspiciatis adipisci accusamus laudantium odit aliquam repellat tempore quos aspernatur vero.
+              .well#search-result
 
     script(type='text/template', id='tmpl-post')
       <% _.each(posts, function(post) { %>
@@ -54,12 +28,16 @@ block content
         p
           span.glyphicon.glyphicon-time
           | Posted on <%= post.userId.timeCreated %>
-        img.img-responsive(src='http://lorempixel.com/900/300/', alt='')
+        img.img-responsive(src='http://placehold.it/900x300', alt='')
         p.lead
           | <%= post.content %>
       <% }); %>
 
-
+    script(type='text/template', id='tmpl-results')
+      h4 Search Result
+      <% _.each(posts, function(post) { %>
+      p <%= post.subject %>
+      <% }); %>
 
 
 
